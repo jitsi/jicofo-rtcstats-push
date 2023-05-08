@@ -1,0 +1,24 @@
+{
+  "name": "@jitsi/jicofo-rtcstats-push",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "lint": "standard app.js",
+    "lint-fix": "standard --fix app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache 2.0",
+  "dependencies": {
+    "deep-object-diff": "^1.1.9",
+    "log-timestamp": "^0.3.0",
+    "node-fetch": "^3.3.1",
+    "standard": "^17.0.0",
+    "uuid": "^9.0.0",
+    "websocket": "^1.0.34",
+    "yargs": "^17.7.2"
+  }
+}
