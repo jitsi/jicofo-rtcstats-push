@@ -155,7 +155,7 @@ const params = yargs(hideBin(process.argv))
     interval: {
       alias: 'i',
       describe: 'The interval in milliseconds at which starts will be pulled and pushed.',
-      default: 30000
+      default: 10000
     }
   })
   .help()
