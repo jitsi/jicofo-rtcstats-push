@@ -96,6 +96,7 @@ class App {
     const removedConfIds = Object.keys(this.conferenceStates).filter(id => confIds.indexOf(id) === -1)
     newConfIds.forEach(newConfId => {
       const statsSessionId = uuidv4()
+      console.log(`New conference ${newConfId}`)
       const confState = {
         statsSessionId,
         confName: newConfId.split('@')[0],
@@ -108,6 +109,7 @@ class App {
       this.sendData(createIdentityMessage(confState))
     })
     removedConfIds.forEach(removedConfId => {
+      console.log(`Conference ended: ${removedConfId}`)
       const confState = this.conferenceStates[removedConfId]
       delete this.conferenceStates[removedConfId]
       this.sendData(createCloseMsg(confState.statsSessionId))
