@@ -96,12 +96,13 @@ class App {
     const removedConfIds = Object.keys(this.conferenceStates).filter(id => confIds.indexOf(id) === -1)
     newConfIds.forEach(newConfId => {
       const statsSessionId = uuidv4()
-      console.log(`New conference ${newConfId}`)
+      const confName = jicofoJson[newConfId].name || newConfId
+      console.log(`New conference ${newConfId} (${confName})`)
       const confState = {
         statsSessionId,
-        confName: newConfId.split('@')[0],
+        confName,
         displayName: os.hostname(),
-        meetingUniqueId: jicofoJson[newConfId].meeting_id || newConfId,
+        meetingUniqueId: newConfId,
         applicationName: 'Jicofo',
         endpoints: []
       }
