@@ -1,4 +1,5 @@
 const fetch = require('node-fetch')
+const JicofoLogTail = require('./JicofoLogTail.js')
 const { v4: uuidv4 } = require('uuid')
 const { diff } = require('deep-object-diff')
 const yargs = require('yargs/yargs')
@@ -8,12 +9,14 @@ const os = require('os')
 require('log-timestamp')
 
 class App {
-  constructor (jicofoBaseUrl, rtcStatsServerUrl, interval) {
+  constructor (jicofoBaseUrl, rtcStatsServerUrl, interval, jicofoLogFile) {
     this.jicofoUrl = `${jicofoBaseUrl}/rtcstats`
     this.rtcStatsServerUrl = rtcStatsServerUrl
     this.interval = interval
+    this.jicofoLogFile = jicofoLogFile
     console.log(`Querying Jicofo REST API at ${this.jicofoUrl} every ${interval} ms.`)
     console.log(`Sending stats data to RTC stats server at ${this.rtcStatsServerUrl}.`)
+    console.log(`Jicofo log file: ${jicofoLogFile}`)
 
     // Map conference ID to state about that conference
     // Conference state contains, at least:
@@ -25,6 +28,10 @@ class App {
 
   start () {
     this.setupWebsocket()
+    if (this.jicofoLogFile) {
+      console.log(`Reading Jicofo logs from ${this.jicofoLogFile}.`)
+      this.tail = new JicofoLogTail(this.jicofoLogFile)
+    }
     this.fetchTask = setInterval(async () => {
       console.log('Fetching data')
       const json = await fetchJson(this.jicofoUrl)
@@ -121,8 +128,16 @@ class App {
     this.checkForAddedOrRemovedEndpoints(confId, confData.participants)
     const previousData = this.conferenceStates[confId].previousDebugData || {}
     const statDiff = diff(previousData, confData)
-    this.sendData(createStatEntryMessage(this.conferenceStates[confId].statsSessionId, statDiff))
+    const statsSessionId = this.conferenceStates[confId].statsSessionId
+    this.sendData(createStatEntryMessage(statsSessionId, statDiff))
     this.conferenceStates[confId].previousDebugData = confData
+
+    if (this.tail) {
+      const logs = this.tail.getLogs(confId)
+      if (logs && logs.length) {
+        this.sendData(createStatEntryLogMessage(statsSessionId, logs))
+      }
+    }
   }
 
   checkForAddedOrRemovedEndpoints (confId, currentConfEndpoints) {
@@ -157,6 +172,11 @@ const params = yargs(hideBin(process.argv))
       alias: 'i',
       describe: 'The interval in milliseconds at which starts will be pulled and pushed.',
       default: 10000
+    },
+    'jicofo-log-file': {
+      alias: 'l',
+      describe: 'The path to the Jicofo log file to tail.',
+      demandOption: false
     }
   })
   .help()
@@ -164,7 +184,7 @@ const params = yargs(hideBin(process.argv))
 
 console.log(`Got jicofo address ${params.jicofoAddress} and rtcstats server ${params.rtcstatsServer} and interval ${params.interval}`)
 
-const app = new App(params.jicofoAddress, params.rtcstatsServer, params.interval)
+const app = new App(params.jicofoAddress, params.rtcstatsServer, params.interval, params.jicofoLogFile)
 
 app.start()
 
@@ -195,6 +215,24 @@ function createCloseMsg (statsSessionId) {
   return {
     type: 'close',
     statsSessionId
+  }
+}
+
+/** Create a stats-entry message that includes logs. */
+function createStatEntryLogMessage (statsSessionId, logLines) {
+  const data = [
+    'logs',
+    null,
+    logLines.map(line => {
+      return { text: line, count: 1 }
+    }),
+    Date.now()
+  ]
+
+  return {
+    type: 'stats-entry',
+    statsSessionId,
+    data: JSON.stringify(data)
   }
 }
 
