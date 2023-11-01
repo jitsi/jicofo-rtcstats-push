@@ -33,7 +33,6 @@ class App {
       this.tail = new JicofoLogTail(this.jicofoLogFile)
     }
     this.fetchTask = setInterval(async () => {
-      console.log('Fetching data')
       const json = await fetchJson(this.jicofoUrl)
       this.processJicofoJson(json)
     }, this.interval)
