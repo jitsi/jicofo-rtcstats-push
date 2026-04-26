@@ -168,6 +168,9 @@ class App {
   }
 
   sendData (msgObj) {
+    if (!this.ws || !this.ws.connected) {
+      return
+    }
     this.ws.send(JSON.stringify(msgObj))
   }
 }
