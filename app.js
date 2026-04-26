@@ -128,7 +128,7 @@ class App {
         displayName: os.hostname(),
         meetingUniqueId: newConfId,
         applicationName: 'Jicofo',
-        endpoints: []
+        endpoints: new Set()
       }
       this.conferenceStates[newConfId] = confState
       this.sendData(createIdentityMessage(confState))
@@ -160,9 +160,9 @@ class App {
   checkForAddedOrRemovedEndpoints (confId, currentConfEndpoints) {
     const confState = this.conferenceStates[confId]
     const epIds = Object.keys(currentConfEndpoints)
-    const newEndpointIds = epIds.filter(epId => confState.endpoints.indexOf(epId) === -1)
+    const newEndpointIds = epIds.filter(epId => !confState.endpoints.has(epId))
     if (newEndpointIds.length > 0) {
-      confState.endpoints.push(...newEndpointIds)
+      newEndpointIds.forEach(epId => confState.endpoints.add(epId))
       this.sendData(createIdentityMessage(confState))
     }
   }
@@ -223,11 +223,11 @@ function createIdentityMessage (state) {
   // but we need to set it as an explicit field of the message.  Also,
   // we need to explicit parse out previousDebugData so that we can
   // not include it in the message
-  const { statsSessionId, previousDebugData, ...metadata } = state
+  const { statsSessionId, previousDebugData, endpoints, ...metadata } = state
   return {
     type: 'identity',
     statsSessionId,
-    data: metadata
+    data: { ...metadata, endpoints: [...endpoints] }
   }
 }
 
