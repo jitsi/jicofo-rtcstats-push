@@ -12,6 +12,12 @@
   "keywords": [],
   "author": "",
   "license": "Apache 2.0",
+  "overrides": {
+    "cross-spawn": ">=7.0.5",
+    "flatted": ">=3.4.2",
+    "minimatch": ">=3.1.4",
+    "semver": ">=6.3.1"
+  },
   "dependencies": {
     "deep-object-diff": "^1.1.9",
     "log-timestamp": "^0.3.0",

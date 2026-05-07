@@ -6,7 +6,25 @@ const yargs = require('yargs/yargs')
 const { hideBin } = require('yargs/helpers')
 const WebSocketClient = require('websocket').client
 const os = require('os')
+const crypto = require('crypto')
 require('log-timestamp')
+
+/** Return a short stable token for an ID suitable for log correlation without disclosure. */
+function redactId (id) {
+  return crypto.createHash('sha256').update(String(id)).digest('hex').substring(0, 8)
+}
+
+/** Strip credentials from a URL string before logging. */
+function safeUrl (urlStr) {
+  try {
+    const u = new URL(urlStr)
+    if (u.password) u.password = '***'
+    if (u.username) u.username = '***'
+    return u.toString()
+  } catch {
+    return '[invalid url]'
+  }
+}
 
 class App {
   constructor (jicofoBaseUrl, rtcStatsServerUrl, interval, jicofoLogFile) {
@@ -14,8 +32,8 @@ class App {
     this.rtcStatsServerUrl = rtcStatsServerUrl
     this.interval = interval
     this.jicofoLogFile = jicofoLogFile
-    console.log(`Querying Jicofo REST API at ${this.jicofoUrl} every ${interval} ms.`)
-    console.log(`Sending stats data to RTC stats server at ${this.rtcStatsServerUrl}.`)
+    console.log(`Querying Jicofo REST API at ${safeUrl(this.jicofoUrl)} every ${interval} ms.`)
+    console.log(`Sending stats data to RTC stats server at ${safeUrl(this.rtcStatsServerUrl)}.`)
     console.log(`Jicofo log file: ${jicofoLogFile}`)
 
     // Map conference ID to state about that conference
@@ -103,20 +121,20 @@ class App {
     newConfIds.forEach(newConfId => {
       const statsSessionId = uuidv4()
       const confName = jicofoJson[newConfId].name || newConfId
-      console.log(`New conference ${newConfId} (${confName})`)
+      console.log(`New conference [${redactId(newConfId)}]`)
       const confState = {
         statsSessionId,
         confName,
         displayName: os.hostname(),
         meetingUniqueId: newConfId,
         applicationName: 'Jicofo',
-        endpoints: []
+        endpoints: new Set()
       }
       this.conferenceStates[newConfId] = confState
       this.sendData(createIdentityMessage(confState))
     })
     removedConfIds.forEach(removedConfId => {
-      console.log(`Conference ended: ${removedConfId}`)
+      console.log(`Conference ended: [${redactId(removedConfId)}]`)
       const confState = this.conferenceStates[removedConfId]
       delete this.conferenceStates[removedConfId]
       this.sendData(createCloseMsg(confState.statsSessionId))
@@ -142,14 +160,17 @@ class App {
   checkForAddedOrRemovedEndpoints (confId, currentConfEndpoints) {
     const confState = this.conferenceStates[confId]
     const epIds = Object.keys(currentConfEndpoints)
-    const newEndpointIds = epIds.filter(epId => confState.endpoints.indexOf(epId) === -1)
+    const newEndpointIds = epIds.filter(epId => !confState.endpoints.has(epId))
     if (newEndpointIds.length > 0) {
-      confState.endpoints.push(...newEndpointIds)
+      newEndpointIds.forEach(epId => confState.endpoints.add(epId))
       this.sendData(createIdentityMessage(confState))
     }
   }
 
   sendData (msgObj) {
+    if (!this.ws || !this.ws.connected) {
+      return
+    }
     this.ws.send(JSON.stringify(msgObj))
   }
 }
@@ -181,7 +202,7 @@ const params = yargs(hideBin(process.argv))
   .help()
   .argv
 
-console.log(`Got jicofo address ${params.jicofoAddress} and rtcstats server ${params.rtcstatsServer} and interval ${params.interval}`)
+console.log(`Got jicofo address ${safeUrl(params.jicofoAddress)} and rtcstats server ${safeUrl(params.rtcstatsServer)} and interval ${params.interval}`)
 
 const app = new App(params.jicofoAddress, params.rtcstatsServer, params.interval, params.jicofoLogFile)
 
@@ -192,7 +213,7 @@ async function fetchJson (url) {
     const response = await fetch(url)
     return await response.json()
   } catch (e) {
-    console.log('Error retrieving data: ', e)
+    console.log('Error retrieving data: ', e.message)
     return null
   }
 }
@@ -202,11 +223,11 @@ function createIdentityMessage (state) {
   // but we need to set it as an explicit field of the message.  Also,
   // we need to explicit parse out previousDebugData so that we can
   // not include it in the message
-  const { statsSessionId, previousDebugData, ...metadata } = state
+  const { statsSessionId, previousDebugData, endpoints, ...metadata } = state
   return {
     type: 'identity',
     statsSessionId,
-    data: metadata
+    data: { ...metadata, endpoints: [...endpoints] }
   }
 }
 
